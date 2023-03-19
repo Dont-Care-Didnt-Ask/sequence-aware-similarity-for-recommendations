@@ -14,3 +14,15 @@ In recommender systems, the order in which the user interacts with items might b
 However, approaches like KNN, PureSVD and ScaledSVD do not take the order into account.
 One of the easiest ways to incorporate positional information is to use sequence-aware similarity measure -- for example, Weighted Jaccard Index.
 So, in this project we want to augment popular baselines with this simple modification and check, if it is beneficial.
+
+# Setup
+
+```
+git clone git@github.com:Dont-Care-Didnt-Ask/sequence-aware-similarity-for-recommendations.git
+cd sequence-aware-similarity-for-recommendations
+
+conda create -n recsys python=3.9
+conda activate recsys
+conda install --file requirements.txt
+```
+
