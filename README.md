@@ -26,3 +26,5 @@ conda activate recsys
 conda install --file requirements.txt
 ```
 
+NB: launching jupyter, make sure you use jupyter from this env!
+You might need to launch it like `~/miniconda3/envs/recsys/bin/jupiter-lab`
