@@ -4,7 +4,7 @@ from scipy.sparse import csr_matrix, csc_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 
 from data_preprocessing import generate_interactions_matrix
-from evaluation import downvote_seen_items, topn_recommendations, model_evaluate
+from evaluation import downvote_seen_items, topn_recommendations, model_evaluate, only_sample_items
 
 
 def jaccard_similarity(matrix_A, matrix_B=None):
@@ -56,7 +56,7 @@ def build_uknn_model(config, training, data_description):
     return user_item_mat_train, config
 
 
-def uknn_scoring(model_params, data, data_description, k=None):
+def uknn_scoring(model_params, data, data_description, k=None, sample=False):
     user_item_mat_train, config = model_params
     user_item_mat_test = generate_interactions_matrix(data, data_description, rebase_users=True)
 
@@ -73,14 +73,14 @@ def uknn_scoring(model_params, data, data_description, k=None):
     return scores
 
 
-def uknn_gridsearch(k_vals, config, training, testset, holdout, data_description, topn):
+def uknn_gridsearch(k_vals, config, training, testset, holdout, data_description, topn, sample = False):
     user_item_mat_train, config = build_uknn_model(config, training, data_description)
     user_item_mat_test = generate_interactions_matrix(testset, data_description, rebase_users=True)
 
     if config['similarity'] == 'cosine':
         similarity = cosine_similarity(user_item_mat_test, user_item_mat_train, dense_output=False)
     elif config['similarity'] == 'jaccard':
-        similarity = jaccard_similarity(user_item_mat_test, user_item_mat_train) 
+        similarity = jaccard_similarity(user_item_mat_test, user_item_mat_train)
 
     results = {}
     
@@ -91,6 +91,9 @@ def uknn_gridsearch(k_vals, config, training, testset, holdout, data_description
             similarity_trunc = similarity
         
         scores = similarity_trunc.dot(user_item_mat_train).A
+        if sample:
+            only_sample_items(scores, holdout, data_description, neg_sample_size=100)
+        downvote_seen_items(scores, testset, data_description)
         recs = topn_recommendations(scores, topn)
         results[k] = model_evaluate(recs, holdout, data_description, topn)
     

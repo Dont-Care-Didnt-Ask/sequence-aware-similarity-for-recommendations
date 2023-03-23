@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import svds
 
 from data_preprocessing import generate_interactions_matrix
-from evaluation import downvote_seen_items, topn_recommendations, model_evaluate
+from evaluation import downvote_seen_items, topn_recommendations, model_evaluate, only_sample_items
 
 
 def build_svd_model(config, training, data_description):
@@ -14,14 +14,16 @@ def build_svd_model(config, training, data_description):
     return item_factors
 
 
-def svd_scoring(item_factors, data, data_description):
+def svd_scoring(item_factors, data, holdout, data_description, sample = False):
     test_matrix = generate_interactions_matrix(data, data_description, rebase_users=True)
     scores = test_matrix.dot(item_factors) @ item_factors.T
+    if sample:
+        only_sample_items(scores, holdout, data_description, neg_sample_size=100)
     downvote_seen_items(scores, data, data_description)
     return scores
 
 
-def svd_gridsearch(ranks, training, testset, holdout, data_description, topn):
+def svd_gridsearch(ranks, training, testset, holdout, data_description, topn, sample):
     max_rank = max(ranks)
     config = {"rank": max_rank}
     item_factors = build_svd_model(config, training, data_description)
@@ -29,7 +31,7 @@ def svd_gridsearch(ranks, training, testset, holdout, data_description, topn):
     
     for rank in ranks:
         item_factors_trunc = item_factors[:, :rank]
-        scores = svd_scoring(item_factors_trunc, testset, data_description)
+        scores = svd_scoring(item_factors_trunc, testset, holdout, data_description, sample)
         recs = topn_recommendations(scores, topn)
         metric = model_evaluate(recs, holdout, data_description, topn)
 

@@ -3,7 +3,7 @@ import scipy.sparse as sps
 from scipy.sparse.linalg import svds
 
 from data_preprocessing import generate_interactions_matrix
-from evaluation import downvote_seen_items, topn_recommendations, model_evaluate
+from evaluation import downvote_seen_items, topn_recommendations, model_evaluate, only_sample_items
 from pure_svd import svd_scoring
 
 
@@ -16,7 +16,7 @@ def build_scaled_svd_model(config, training, data_description):
     return item_factors
 
 
-def scaled_svd_gridsearch(ranks, scalings, training, testset, holdout, data_description, topn):
+def scaled_svd_gridsearch(ranks, scalings, training, testset, holdout, data_description, topn, sample=False):
     max_rank = max(ranks)
     config = {"rank": max_rank}
     results = []
@@ -29,7 +29,7 @@ def scaled_svd_gridsearch(ranks, scalings, training, testset, holdout, data_desc
 
         for rank in ranks:
             item_factors_trunc = item_factors[:, :rank]
-            scores = svd_scoring(item_factors_trunc, testset, data_description)
+            scores = svd_scoring(item_factors_trunc, testset, holdout, data_description, sample)
             recs = topn_recommendations(scores, topn)
             metric = model_evaluate(recs, holdout, data_description, topn)
             

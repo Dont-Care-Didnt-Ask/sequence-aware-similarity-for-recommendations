@@ -15,6 +15,19 @@ def downvote_seen_items(scores, data, data_description):
     scores[row_idx, col_idx] = scores.min() - 1
 
 
+
+def only_sample_items(scores, holdout, data_description, neg_sample_size):
+    assert isinstance(scores, np.ndarray), 'Scores must be a dense numpy array!'
+    itemid = data_description['items']
+    col_idx_hol = holdout[itemid].values
+    for i in range(scores.shape[0]):
+        all = list(np.arange(scores.shape[1]))
+        all.pop(col_idx_hol[i])
+        ind = np.random.choice(all, neg_sample_size, replace = False)
+        ind_del = list(set(all).symmetric_difference(set(ind)))
+        scores[i, ind_del] = scores.min() - 1
+
+
 def model_evaluate(recommended_items, holdout, holdout_description, topn):
     itemid = holdout_description['items']
     holdout_items = holdout[itemid].values
