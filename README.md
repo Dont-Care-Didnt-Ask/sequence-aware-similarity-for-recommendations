@@ -24,6 +24,7 @@ cd sequence-aware-similarity-for-recommendations
 conda create -n recsys python=3.9
 conda activate recsys
 conda install --file requirements.txt
+pip install ilupp
 ```
 
 NB: launching jupyter, make sure you use jupyter from this env!
