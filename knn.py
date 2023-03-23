@@ -1,10 +1,22 @@
 import numpy as np
 from scipy.sparse.linalg import svds
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, csc_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 
 from data_preprocessing import generate_interactions_matrix
 from evaluation import downvote_seen_items, topn_recommendations, model_evaluate
+
+
+def jaccard_similarity(matrix_A, matrix_B=None):
+    if matrix_B is None:
+        matrix_B = matrix_A
+
+    similarity = csc_matrix((matrix_B.shape[0], matrix_A.shape[0]))
+    for u in range(matrix_A.shape[0]):
+        repeated_row_matrix = csc_matrix(np.ones([matrix_B.shape[0], 1])) * matrix_B[u]
+        similarity[:, u] = csc_matrix((repeated_row_matrix.minimum(matrix_B).sum(axis=1) / repeated_row_matrix.maximum(matrix_B).sum(axis=1)))
+
+    return csr_matrix(similarity.T)
 
 
 def truncate_similarity(similarity, k):
@@ -41,12 +53,17 @@ def truncate_similarity(similarity, k):
 
 def build_uknn_model(config, training, data_description):
     user_item_mat_train = generate_interactions_matrix(training, data_description).astype(np.float32)
-    return user_item_mat_train
+    return user_item_mat_train, config
 
 
-def uknn_scoring(user_item_mat_train, data, data_description, k=None):
+def uknn_scoring(model_params, data, data_description, k=None):
+    user_item_mat_train, config = model_params
     user_item_mat_test = generate_interactions_matrix(data, data_description, rebase_users=True)
-    similarity = cosine_similarity(user_item_mat_test, user_item_mat_train, dense_output=False)
+
+    if config['similarity'] == 'cosine':
+        similarity = cosine_similarity(user_item_mat_test, user_item_mat_train, dense_output=False)
+    elif config['similarity'] == 'jaccard':
+        similarity = jaccard_similarity(user_item_mat_test, user_item_mat_train)
 
     if k is not None:
         similarity = truncate_similarity(similarity, k)
@@ -56,12 +73,24 @@ def uknn_scoring(user_item_mat_train, data, data_description, k=None):
     return scores
 
 
-def uknn_gridsearch(k_vals, training, testset, holdout, data_description, topn):
-    user_item_mat_train = build_uknn_model(None, training, data_description)
+def uknn_gridsearch(k_vals, config, training, testset, holdout, data_description, topn):
+    user_item_mat_train, config = build_uknn_model(config, training, data_description)
+    user_item_mat_test = generate_interactions_matrix(testset, data_description, rebase_users=True)
+
+    if config['similarity'] == 'cosine':
+        similarity = cosine_similarity(user_item_mat_test, user_item_mat_train, dense_output=False)
+    elif config['similarity'] == 'jaccard':
+        similarity = jaccard_similarity(user_item_mat_test, user_item_mat_train) 
+
     results = {}
     
     for k in k_vals:
-        scores = uknn_scoring(user_item_mat_train, testset, data_description, k=k)
+        if k is not None:
+            similarity_trunc = truncate_similarity(similarity, k)
+        else:
+            similarity_trunc = similarity
+        
+        scores = similarity_trunc.dot(user_item_mat_train).A
         recs = topn_recommendations(scores, topn)
         results[k] = model_evaluate(recs, holdout, data_description, topn)
     
@@ -70,7 +99,11 @@ def uknn_gridsearch(k_vals, training, testset, holdout, data_description, topn):
 
 def build_iknn_model(config, training, data_description):
     user_item_mat_train = generate_interactions_matrix(training, data_description).astype(np.float32)
-    item_similarity = cosine_similarity(user_item_mat_train, dense_output=False)
+    if config['similarity'] == 'cosine':
+        item_similarity = cosine_similarity(user_item_mat_train, dense_output=False)
+    elif config['similarity'] == 'jaccard':
+        item_similarity = jaccard_similarity(user_item_mat_train)
+
     item_similarity.set_diag(0)
     return item_similarity
 
