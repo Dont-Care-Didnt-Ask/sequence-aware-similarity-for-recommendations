@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import svds
-from scipy.sparse import csr_matrix, csc_matrix
+from scipy.sparse import csr_matrix, lil_matrix, csc_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 
 from data_preprocessing import generate_interactions_matrix
@@ -11,10 +11,10 @@ def jaccard_similarity(matrix_A, matrix_B=None):
     if matrix_B is None:
         matrix_B = matrix_A
 
-    similarity = csc_matrix((matrix_B.shape[0], matrix_A.shape[0]))
+    similarity = lil_matrix((matrix_B.shape[0], matrix_A.shape[0]))
     for u in range(matrix_A.shape[0]):
-        repeated_row_matrix = csc_matrix(np.ones([matrix_B.shape[0], 1])) * matrix_B[u]
-        similarity[:, u] = csc_matrix((repeated_row_matrix.minimum(matrix_B).sum(axis=1) / repeated_row_matrix.maximum(matrix_B).sum(axis=1)))
+        repeated_row_matrix = csr_matrix(np.ones([matrix_B.shape[0], 1])) * matrix_B[u]
+        similarity[:, u] = (repeated_row_matrix.minimum(matrix_B).sum(axis=1) / repeated_row_matrix.maximum(matrix_B).sum(axis=1))
 
     return csr_matrix(similarity.T)
 
