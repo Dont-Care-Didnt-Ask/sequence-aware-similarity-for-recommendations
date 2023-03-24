@@ -20,7 +20,7 @@ def generate_weights(data, data_description, power=1):
     return data
 
 
-def generate_interactions_matrix(data, data_description, rebase_users=False):
+def generate_interactions_matrix(data, data_description, rebase_users=False, weights=False):
     '''
     Converts a pandas dataframe with user-item interactions into a sparse matrix representation.
     Allows reindexing user ids, which help ensure data consistency at the scoring stage
@@ -49,8 +49,13 @@ def generate_interactions_matrix(data, data_description, rebase_users=False):
         # which helps ensure data consistency at the scoring stage.
         user_idx, user_index = pd.factorize(user_idx, sort=True)
         n_users = len(user_index)
+
+    if weights:
+        feedback = data[data_description['weights']].values
+    else:
+        feedback = data[data_description['feedback']].values
+
     item_idx = data[data_description['items']].values
-    feedback = data[data_description['feedback']].values
     # construct rating matrix
     return csr_matrix((feedback, (user_idx, item_idx)), shape=(n_users, n_items))
 
