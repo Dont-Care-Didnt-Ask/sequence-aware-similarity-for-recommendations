@@ -86,7 +86,7 @@ def uknn_gridsearch(k_vals, a_vals, config, training, testset, holdout, data_des
     similarity_cos = cosine_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim, dense_output=False)
     similarity_jac = jaccard_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim)
 
-    results = {}
+    results = []
     
     for alpha in a_vals:
         similarity = alpha*similarity_cos + (1-alpha)*similarity_jac
@@ -98,7 +98,11 @@ def uknn_gridsearch(k_vals, a_vals, config, training, testset, holdout, data_des
             
             scores = similarity_trunc.dot(user_item_mat_train).A
             recs = topn_recommendations(scores, topn)
-            results[(alpha, k)] = model_evaluate(recs, holdout, data_description, topn)
+            metric = model_evaluate(recs, holdout, data_description, topn)
+            
+            results.append(
+                {"alpha": alpha, "k": k, "metric": metric}
+            )
     
     return results
 
