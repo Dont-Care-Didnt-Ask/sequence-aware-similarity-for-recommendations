@@ -8,7 +8,7 @@ def generate_weights(data, data_description, power=1):
     Generates weights for interactions for each user according to item's position in a user's
     list of interactions. The first item gets weight 1, the second one gets 1/2 and so on.
     """
-    data = (
+    new_data = (
         data
         .groupby(data_description['users'])
         .apply(
@@ -17,7 +17,7 @@ def generate_weights(data, data_description, power=1):
         )
         .reset_index(drop=True)
     )
-    return data
+    return new_data
 
 
 def generate_interactions_matrix(data, data_description, rebase_users=False, weights=False):
