@@ -3,6 +3,23 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 
 
+def generate_ranks(data, data_description, power=1):
+    """
+    Generates weights for interactions for each user according to item's position in a user's
+    list of interactions. The first item gets weight 1, the second one gets 1/2 and so on.
+    """
+    new_data = (
+        data
+        .groupby(data_description['users'])
+        .apply(
+            lambda x: x.sort_values('timestamp', ascending=False)
+            .assign(ranks = np.power(1 / np.arange(1, len(x) + 1), power) )
+        )
+        .reset_index(drop=True)
+    )
+    return new_data
+
+
 def generate_weights(data, data_description, power=1):
     """
     Generates weights for interactions for each user according to item's position in a user's

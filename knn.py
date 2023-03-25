@@ -52,24 +52,35 @@ def truncate_similarity(similarity, k):
 
 
 def build_uknn_model(config, training, data_description):
+    training["weights"] = np.power(training["ranks"], config["power"])
+
     user_item_mat_train = generate_interactions_matrix(training, data_description).astype(np.float32)
-    user_item_mat_train_for_sim = generate_interactions_matrix(training, data_description, weights=config['weights']).astype(np.float32)
-    return user_item_mat_train, user_item_mat_train_for_sim, config
+    user_item_mat_train_w = generate_interactions_matrix(training, data_description, weights=True).astype(np.float32)
+    return user_item_mat_train, user_item_mat_train_w, config
 
 
 def uknn_scoring(model_params, data, data_description, k=None):
-    user_item_mat_train, user_item_mat_train_for_sim, config = model_params
-    user_item_mat_test_for_sim = generate_interactions_matrix(data, data_description, rebase_users=True, weights=config['weights'])
+    user_item_mat_train, user_item_mat_train_w, config = model_params
 
-    if config['similarity'] == 'cosine':
-        similarity = cosine_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim, dense_output=False)
-    elif config['similarity'] == 'jaccard':
-        similarity = jaccard_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim)
-    elif config['similarity'] == 'mixed':
-        alpha = config['alpha']
-        similarity_cos = cosine_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim, dense_output=False)
-        similarity_jac = jaccard_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim)
-        similarity = alpha*similarity_cos + (1-alpha)*similarity_jac
+    data["weights"] = np.power(data["ranks"], config["power"])
+
+    user_item_mat_test = generate_interactions_matrix(data, data_description, rebase_users=True)
+    user_item_mat_test_w = generate_interactions_matrix(data, data_description, rebase_users=True, weights=True)
+
+    if config['similarity_A'] == 'cosine':
+        similarity_A = cosine_similarity(user_item_mat_test, user_item_mat_train, dense_output=False)
+        
+    elif config['similarity_A'] == 'jaccard':
+        similarity_A = jaccard_similarity(user_item_mat_test, user_item_mat_train)
+        
+    if config['similarity_T'] == 'cosine':
+        similarity_T = cosine_similarity(user_item_mat_test_w, user_item_mat_train_w, dense_output=False)
+        similarity = similarity_A.multiply(similarity_T)
+    elif config['similarity_T'] == 'jaccard':
+        similarity_T = jaccard_similarity(user_item_mat_test_w, user_item_mat_train_w)
+        similarity = similarity_A.multiply(similarity_T)
+    else:
+        similarity = similarity_A
 
     if k is not None:
         similarity = truncate_similarity(similarity, k)
@@ -79,17 +90,34 @@ def uknn_scoring(model_params, data, data_description, k=None):
     return scores
 
 
-def uknn_gridsearch(k_vals, a_vals, config, training, testset, holdout, data_description, topn):
-    user_item_mat_train, user_item_mat_train_for_sim, config = build_uknn_model(config, training, data_description)
-    user_item_mat_test_for_sim = generate_interactions_matrix(testset, data_description, rebase_users=True, weights=config['weights'])
+def uknn_gridsearch(k_vals, p_vals, config, training, testset, holdout, data_description, topn):
+    user_item_mat_train = generate_interactions_matrix(training, data_description)
+    user_item_mat_test = generate_interactions_matrix(testset, data_description, rebase_users=True)
 
-    similarity_cos = cosine_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim, dense_output=False)
-    similarity_jac = jaccard_similarity(user_item_mat_test_for_sim, user_item_mat_train_for_sim)
+    if config['similarity_A'] == 'cosine':
+        similarity_A = cosine_similarity(user_item_mat_test, user_item_mat_train, dense_output=False)
+        
+    elif config['similarity_A'] == 'jaccard':
+        similarity_A = jaccard_similarity(user_item_mat_test, user_item_mat_train)
 
     results = []
-    
-    for alpha in a_vals:
-        similarity = alpha*similarity_cos + (1-alpha)*similarity_jac
+    for p in p_vals:
+        training["weights"] = np.power(training["ranks"], p)
+        testset["weights"] = np.power(testset["ranks"], p)
+        
+        user_item_mat_train_w = generate_interactions_matrix(training, data_description, weights=True)
+        user_item_mat_test_w = generate_interactions_matrix(testset, data_description, rebase_users=True, weights=True)
+            
+        if config['similarity_T'] == 'cosine':
+            similarity_T = cosine_similarity(user_item_mat_test_w, user_item_mat_train_w, dense_output=False)
+            similarity = similarity_A.multiply(similarity_T)
+        elif config['similarity_T'] == 'jaccard':
+            similarity_T = jaccard_similarity(user_item_mat_test_w, user_item_mat_train_w)
+            similarity = similarity_A.multiply(similarity_T)
+        else:
+            similarity = similarity_A
+        
+        
         for k in k_vals:
             if k is not None:
                 similarity_trunc = truncate_similarity(similarity, k)
@@ -101,9 +129,9 @@ def uknn_gridsearch(k_vals, a_vals, config, training, testset, holdout, data_des
             metric = model_evaluate(recs, holdout, data_description, topn)
             
             results.append(
-                {"alpha": alpha, "k": k, "metric": metric}
+                {"power": p, "k": k, "metric": metric}
             )
-    
+        
     return results
 
 
