@@ -3,24 +3,41 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 
 
-def generate_weights(data, data_description):
+def generate_ranks(data, data_description, power=1):
     """
     Generates weights for interactions for each user according to item's position in a user's
     list of interactions. The first item gets weight 1, the second one gets 1/2 and so on.
     """
-    data = (
+    new_data = (
         data
         .groupby(data_description['users'])
         .apply(
             lambda x: x.sort_values('timestamp', ascending=False)
-            .assign(weights = 1/np.arange(1, len(x)+1))
+            .assign(ranks = np.power(1 / np.arange(1, len(x) + 1), power) )
         )
         .reset_index(drop=True)
     )
-    return data
+    return new_data
 
 
-def generate_interactions_matrix(data, data_description, rebase_users=False):
+def generate_weights(data, data_description, power=1):
+    """
+    Generates weights for interactions for each user according to item's position in a user's
+    list of interactions. The first item gets weight 1, the second one gets 1/2 and so on.
+    """
+    new_data = (
+        data
+        .groupby(data_description['users'])
+        .apply(
+            lambda x: x.sort_values('timestamp', ascending=False)
+            .assign(weights = np.power(1 / np.arange(1, len(x) + 1), power) )
+        )
+        .reset_index(drop=True)
+    )
+    return new_data
+
+
+def generate_interactions_matrix(data, data_description, rebase_users=False, weights=False):
     '''
     Converts a pandas dataframe with user-item interactions into a sparse matrix representation.
     Allows reindexing user ids, which help ensure data consistency at the scoring stage
@@ -49,8 +66,13 @@ def generate_interactions_matrix(data, data_description, rebase_users=False):
         # which helps ensure data consistency at the scoring stage.
         user_idx, user_index = pd.factorize(user_idx, sort=True)
         n_users = len(user_index)
+
+    if weights:
+        feedback = data[data_description['weights']].values
+    else:
+        feedback = data[data_description['feedback']].values
+
     item_idx = data[data_description['items']].values
-    feedback = data[data_description['feedback']].values
     # construct rating matrix
     return csr_matrix((feedback, (user_idx, item_idx)), shape=(n_users, n_items))
 
